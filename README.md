@@ -1,0 +1,216 @@
+<p align="center">
+  <a href="https://www.huntapi.com"><img src="images/banner.png" alt="Video Download API by HuntAPI" width="100%"></a>
+</p>
+
+# Video Download API
+
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/CFj3ph8aHU) [![Get API key](https://img.shields.io/badge/HuntAPI-Get%20an%20API%20key-111827)](https://app.huntapi.com/register) [![API docs](https://img.shields.io/badge/Docs-API%20reference-0EA5E9)](https://docs.huntapi.com) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+The **HuntAPI Video Download API** downloads a video (or only its audio) from a public media URL. The request returns a `job_id`; poll the job until it completes and get a link to the file, plus metadata.
+
+- **Video Download API** — 
+
+Use it to archive media, build content pipelines, feed transcription or AI workflows, or add a download button to your product.
+
+| Endpoint | Request | Credits |
+|---|---|---|
+| [Video Download API](#video-download-api) | `GET /v1/video/download` | 1 |
+
+## Table of contents
+
+- [How it works](#how-it-works)
+- [Video Download API](#video-download-api)
+- [Code examples in other languages](#code-examples-in-other-languages)
+- [Use cases](#use-cases)
+- [Why HuntAPI?](#why-huntapi)
+- [FAQ](#faq)
+- [Related repositories](#related-repositories)
+- [Support](#support)
+
+## How it works
+
+1. **Create a HuntAPI account** and copy your API key from the [dashboard](https://app.huntapi.com/register).
+2. **Call `https://api.huntapi.com`** with the header `x-api-key: YOUR_API_KEY`.
+3. **Use the result** in your app — no infrastructure to run.
+
+```bash
+export HUNTAPI_API_KEY="your-api-key"
+pip install requests        # Python
+# TypeScript: Node.js 18+ (native fetch), run with `npx tsx file.ts`
+```
+
+## Video Download API
+
+
+
+`GET https://api.huntapi.com/v1/video/download` · **1 credit per request** · [API reference](https://app.huntapi.com/openapi)
+
+### Request parameters
+
+| Parameter | In | Type | Required | Description |
+|---|---|---|---|---|
+| `query` | query | string | ✅ | Video URL to download. |
+| `download_type` | query | string | — | Desired download type. You have three options: |
+| `max_duration` | query | number | — | Maximum duration of the downloaded content in seconds. If the video/audio is longer than this value, only the content up to this duration will be downloaded. |
+| `video_quality` | query | string | — | Desired video quality. Available options: |
+| `video_format` | query | string | — | Desired output format for the video. Available options: |
+| `webhook_url` | query | string | — | URL of the webhook where results will be sent. When specified, the system will attempt to send the response to this URL up to 3 times with a 5-second delay between each attempt. The results will be sent as a POST request… |
+| `webhook_authorization` | query | string | — | Authorization header for the webhook. This parameter allows you to add authentication to your webhook endpoint. This value will be included in the `Authorization` header when making the webhook request to your server. |
+
+### Python example
+
+```python
+import os
+import time
+
+import requests
+
+API_KEY = os.environ["HUNTAPI_API_KEY"]
+HEADERS = {"x-api-key": API_KEY}
+
+response = requests.get(
+    "https://api.huntapi.com/v1/video/download",
+    headers=HEADERS,
+    params={
+        "query": "https://www.youtube.com/watch?v=Z5YP8kznWZs",
+        "video_quality": "720p",
+        "video_format": "mp4",
+    },
+    timeout=120,
+)
+response.raise_for_status()
+
+job_id = response.json()["job_id"]
+
+# Poll the job until it reaches a final status
+while True:
+    job = requests.get(f"https://api.huntapi.com/v1/jobs/{job_id}", headers=HEADERS, timeout=60).json()
+    print(job["status"], job.get("progress"))
+    if job["status"] in ("CompletedJob", "Error", "NotFound", "BadRequest"):
+        break
+    time.sleep(5)
+
+print(job.get("result"))
+```
+
+### TypeScript example
+
+```typescript
+const headers = { "x-api-key": process.env.HUNTAPI_API_KEY!, "Content-Type": "application/json" };
+
+const params = new URLSearchParams({
+  "query": "https://www.youtube.com/watch?v=Z5YP8kznWZs",
+  "video_quality": "720p",
+  "video_format": "mp4",
+});
+
+const response = await fetch(`https://api.huntapi.com/v1/video/download?${params}`, { headers });
+if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+
+const { job_id: jobId } = (await response.json()) as { job_id: string };
+
+type Job = { status: string; progress?: number; result?: unknown };
+const done = new Set(["CompletedJob", "Error", "NotFound", "BadRequest"]);
+let job: Job;
+do {
+  await new Promise((r) => setTimeout(r, 5000));
+  job = (await (await fetch(`https://api.huntapi.com/v1/jobs/${jobId}`, { headers })).json()) as Job;
+  console.log(job.status, job.progress);
+} while (!done.has(job.status));
+
+console.log(job.result);
+```
+
+### Async workflow
+
+1. The request returns `{"job_id": "…"}` immediately.
+2. Poll `GET https://api.huntapi.com/v1/jobs/{id}` every few seconds — `status` goes from `Queued` to `Running` (with `progress` 0–100) to a final value: `CompletedJob`, `Error`, `NotFound`, `BadRequest`.
+3. When `status` is `CompletedJob`, read `result` (download link and metadata).
+
+Prefer push over polling? Pass `webhook_url` and the result is POSTed to your endpoint.
+
+## Code examples in other languages
+
+Ready-to-run examples live in [`examples/`](examples); each reads your key from `HUNTAPI_API_KEY`.
+
+| Language | `video-download` |
+|---|---|
+| cURL (Bash) | [video_download.sh](examples/curl/video_download.sh) |
+| PHP | [video_download.php](examples/php/video_download.php) |
+| C# | [VideoDownload.cs](examples/csharp/VideoDownload.cs) |
+| Go | [video_download.go](examples/go/video_download.go) |
+| Java | [VideoDownloadExample.java](examples/java/VideoDownloadExample.java) |
+| Ruby | [video_download.rb](examples/ruby/video_download.rb) |
+| Node.js | [video_download.mjs](examples/nodejs/video_download.mjs) |
+
+## Use cases
+
+- **Media archiving** — Keep a copy of public videos your team needs to reference.
+- **AI & transcription pipelines** — Download then send the file to speech-to-text or vision models.
+- **Content repurposing** — Fetch source videos for editing and clipping workflows.
+- **Automation** — Plug downloads into n8n, Make or your own workers with webhooks.
+
+## Why HuntAPI?
+
+- **Async by design** — submit a URL, get a `job_id`, follow `progress` (0–100) or receive a webhook.
+- **Video & audio** — choose quality (up to `1080p` / `best`) and format (`mp4`, `webm`, `mkv`, `mp3`, `m4a`, `wav`).
+- **Metadata in one call** — title, duration, thumbnail, channel and view counts without downloading the file.
+- **One API key, one header** — `x-api-key` on every request, JSON everywhere.
+- **Copy-paste examples** — Python and TypeScript in each README, 7 more languages in `examples/`.
+
+## FAQ
+
+### How do I authenticate?
+
+Create an account on [HuntAPI](https://app.huntapi.com/register), copy your API key and send it in the `x-api-key` header of every request to `https://api.huntapi.com`.
+
+### How much does a request cost?
+
+Credits per call: `/v1/video/download` **1**. See [HuntAPI pricing](https://www.huntapi.com/pricing).
+
+### Why is the response a job id?
+
+Downloads run asynchronously. The request returns a `job_id`; poll `GET /v1/jobs/{id}` until `status` is one of `CompletedJob`, `Error`, `NotFound`, `BadRequest`, or pass `webhook_url` to be notified.
+
+### Can I receive results by webhook?
+
+Yes. Set `webhook_url` (and optionally `webhook_authorization`) and the result is POSTed to your endpoint.
+
+### Which videos cannot be downloaded?
+
+Private, deleted/unavailable and age-restricted videos return an explanatory error message.
+
+### Is it legal to download videos?
+
+Only download content you own or have the right to use, and respect the platform's terms and copyright law. This is not legal advice.
+
+### Which languages are supported?
+
+Any language that can make an HTTP request. This README shows Python and TypeScript; the [`examples/`](examples) folder contains cURL, PHP, C#, Go, Java, Ruby and Node.js.
+
+## Related repositories
+
+- [Audio Download API](https://github.com/huntapi/audio-download-api)
+- [Media Metadata API](https://github.com/huntapi/media-metadata-api)
+- [YouTube Video Downloader API](https://github.com/huntapi/youtube-video-downloader-api)
+- [YouTube to MP3 API](https://github.com/huntapi/youtube-to-mp3-api)
+- [All HuntAPI repositories](https://github.com/huntapi)
+
+## Support
+
+- 💬 Join the [Discord](https://discord.gg/CFj3ph8aHU) to ask questions and share what you build.
+- 📚 Read the [API reference](https://docs.huntapi.com).
+- 🔑 [Get your API key](https://app.huntapi.com/register).
+
+---
+
+<p align="center">
+  <a href="https://www.huntapi.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="images/logo-dark.svg">
+      <img src="images/logo.svg" alt="HuntAPI" height="28">
+    </picture>
+  </a>
+  <br>
+  <sub>Built by <a href="https://www.huntapi.com">HuntAPI</a>. Examples are released under the MIT license.</sub>
+</p>
